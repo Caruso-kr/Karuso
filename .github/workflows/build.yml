@@ -1,0 +1,30 @@
+name: Build JJY File Organizer EXE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+
+      - name: Build portable EXE
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name JJY_FILE_ORGANIZER JJY_File_Organizer.py
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: JJY_FILE_ORGANIZER
+          path: dist/JJY_FILE_ORGANIZER.exe
+          if-no-files-found: error
