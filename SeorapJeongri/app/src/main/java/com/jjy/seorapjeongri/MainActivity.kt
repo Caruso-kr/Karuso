@@ -49,7 +49,15 @@ class MainActivity : ComponentActivity() {
 fun AreaSelection() {
     val names = listOf("DCIM", "Download", "Pictures", "Movies", "Music", "Documents")
     val checked = remember { mutableStateMapOf<String, Boolean>().apply { names.forEach { put(it, it in listOf("DCIM", "Download", "Pictures")) } } }
-    Column(Modifier.fillMaxSize().padding(24.dp)) {
+    var showNext by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .systemBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+    ) {
         Text("정리할 영역을 선택하세요", fontSize = 24.sp)
         Spacer(Modifier.height(8.dp))
         Text("선택한 폴더와 하위 폴더를 검사합니다. JJY DATA는 자동 제외됩니다.")
@@ -65,6 +73,21 @@ fun AreaSelection() {
             Text("기타 폴더 직접 선택", fontSize = 18.sp)
         }
         Spacer(Modifier.weight(1f))
-        Button(onClick = {}, modifier = Modifier.fillMaxWidth()) { Text("다음") }
+        Button(
+            onClick = { showNext = true },
+            enabled = checked.values.any { it },
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) { Text("다음", fontSize = 18.sp) }
+    }
+
+    if (showNext) {
+        AlertDialog(
+            onDismissRequest = { showNext = false },
+            title = { Text("파일 검사 준비") },
+            text = { Text("선택한 영역의 파일을 검사합니다. 다음 단계에서 실제 파일 검사 기능을 연결합니다.") },
+            confirmButton = {
+                TextButton(onClick = { showNext = false }) { Text("확인") }
+            }
+        )
     }
 }
