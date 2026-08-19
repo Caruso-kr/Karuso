@@ -2,6 +2,7 @@ package com.jjy.seorapjeongri
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
@@ -21,58 +22,65 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
 
-private data class FileItem(
-    val file: File,
-    val category: String,
-    val duplicate: Boolean = false
-)
+private data class FileItem(val file: File, val category: String, val duplicate: Boolean = false)
 
 class MainActivity : ComponentActivity() {
-    private var storageAccess by mutableStateOf(Environment.isExternalStorageManager())
+    private var storageAccess by mutableStateOf(hasStorageAccess())
     private var scanRequested by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                DrawerOrganizer(storageAccess = storageAccess, requestStorage = ::requestStorageAccess)
+                DrawerOrganizer(
+                    storageAccess = storageAccess,
+                    scanRequested = scanRequested,
+                    requestStorage = ::requestStorageAccess
+                )
             }
         }
     }
 
     override fun onResume() {
         super.onResume()
-        storageAccess = Environment.isExternalStorageManager()
-        if (storageAccess && scanRequested) scanRequested = false
+        storageAccess = hasStorageAccess()
     }
 
     private fun requestStorageAccess() {
         scanRequested = true
-        if (!Environment.isExternalStorageManager()) {
-            val intent = Intent(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+            startActivity(Intent(
                 Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
                 Uri.parse("package:$packageName")
-            )
-            startActivity(intent)
+            ))
         }
     }
+
+    private fun hasStorageAccess(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
 }
 
 @Composable
-private fun DrawerOrganizer(storageAccess: Boolean, requestStorage: () -> Unit) {
+private fun DrawerOrganizer(
+    storageAccess: Boolean,
+    scanRequested: Boolean,
+    requestStorage: () -> Unit
+) {
     var page by remember { mutableStateOf(0) }
     var selected by remember { mutableStateOf(setOf("DCIM", "Download", "Pictures")) }
+
+    LaunchedEffect(storageAccess, scanRequested) {
+        if (storageAccess && scanRequested) page = 2
+    }
 
     when (page) {
         0 -> HomeScreen { page = 1 }
         1 -> AreaSelection(
             selected = selected,
             onToggle = { name -> selected = if (name in selected) selected - name else selected + name },
-            onNext = {
-                if (storageAccess) page = 2 else requestStorage()
-            }
+            onNext = { if (storageAccess) page = 2 else requestStorage() }
         )
-        2 -> ScanScreen(selectedFolders = selected)
+        else -> ScanScreen(selectedFolders = selected)
     }
 }
 
@@ -94,11 +102,7 @@ private fun HomeScreen(onStart: () -> Unit) {
 }
 
 @Composable
-private fun AreaSelection(
-    selected: Set<String>,
-    onToggle: (String) -> Unit,
-    onNext: () -> Unit
-) {
+private fun AreaSelection(selected: Set<String>, onToggle: (String) -> Unit, onNext: () -> Unit) {
     val names = listOf("DCIM", "Download", "Pictures", "Movies", "Music", "Documents")
     Column(
         Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding()
@@ -115,8 +119,6 @@ private fun AreaSelection(
                 Text(name, fontSize = 18.sp)
             }
         }
-        Spacer(Modifier.height(4.dp))
-        Text("※ 기타 폴더 직접 선택은 다음 버전에서 추가합니다.", fontSize = 12.sp)
         Spacer(Modifier.weight(1f))
         Button(
             onClick = onNext,
@@ -135,50 +137,43 @@ private fun ScanScreen(selectedFolders: Set<String>) {
     LaunchedEffect(selectedFolders) {
         scanning = true
         error = null
-        try {
-            result = withContext(Dispatchers.IO) { scanFolders(selectedFolders) }
-        } catch (e: Exception) {
-            error = e.message ?: "파일 검사 중 오류가 발생했습니다."
-        } finally {
-            scanning = false
-        }
+        try { result = withContext(Dispatchers.IO) { scanFolders(selectedFolders) } }
+        catch (e: Exception) { error = e.message ?: "파일 검사 중 오류가 발생했습니다." }
+        finally { scanning = false }
     }
 
-    Column(
-        Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(20.dp)
-    ) {
+    Column(Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(20.dp)) {
         Text("파일 검사", fontSize = 28.sp)
         Spacer(Modifier.height(8.dp))
-        if (scanning) {
-            Text("선택한 폴더를 검사하고 있습니다…")
-            Spacer(Modifier.height(20.dp))
-            LinearProgressIndicator(Modifier.fillMaxWidth())
-            Spacer(Modifier.height(20.dp))
-            Text("잠시만 기다려 주세요.")
-        } else if (error != null) {
-            Text("검사 오류", fontSize = 22.sp)
-            Spacer(Modifier.height(8.dp))
-            Text(error!!)
-        } else {
-            val duplicateCount = result.count { it.duplicate }
-            Text("검사 완료: ${result.size}개 파일")
-            Text("중복 의심 파일: ${duplicateCount}개")
-            Spacer(Modifier.height(12.dp))
-            if (result.isEmpty()) {
-                Text("정리할 파일이 없습니다.")
-            } else {
-                LazyColumn(Modifier.weight(1f)) {
-                    items(result.take(300)) { item ->
+        when {
+            scanning -> {
+                Text("선택한 폴더의 파일을 검사하고 있습니다…")
+                Spacer(Modifier.height(20.dp))
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+                Spacer(Modifier.height(20.dp))
+                Text("파일 수에 따라 시간이 걸릴 수 있습니다.")
+            }
+            error != null -> {
+                Text("검사 오류", fontSize = 22.sp)
+                Spacer(Modifier.height(8.dp))
+                Text(error!!)
+            }
+            else -> {
+                val duplicateCount = result.count { it.duplicate }
+                Text("검사 완료: ${result.size}개 파일")
+                Text("중복 의심: ${duplicateCount}개")
+                Spacer(Modifier.height(12.dp))
+                if (result.isEmpty()) Text("정리 대상 파일이 없습니다.")
+                else LazyColumn(Modifier.weight(1f)) {
+                    items(result.take(500)) { item ->
                         Column(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
                             Text(item.file.name, fontSize = 16.sp)
-                            Text("${item.category}  ·  ${item.file.parent ?: ""}", fontSize = 12.sp)
+                            Text("${item.category} · ${item.file.parent ?: ""}", fontSize = 12.sp)
                             if (item.duplicate) Text("중복 의심", fontSize = 12.sp)
                         }
                         HorizontalDivider()
                     }
                 }
-                Spacer(Modifier.height(10.dp))
-                Text("※ 현재는 검사/미리보기 단계입니다. 실제 이동은 다음 단계에서 연결합니다.", fontSize = 12.sp)
             }
         }
     }
@@ -197,18 +192,16 @@ private fun scanFolders(selectedFolders: Set<String>): List<FileItem> {
             if (child.name.equals("JJY DATA", ignoreCase = true)) continue
             if (child.isDirectory) walk(child)
             else if (child.isFile && child.canRead()) {
-                val category = classify(child)
-                if (category != null) {
-                    val key = child.name.lowercase(Locale.getDefault()) + "|" + child.length()
-                    val count = seen.getOrDefault(key, 0)
-                    seen[key] = count + 1
-                    found += FileItem(child, category, count > 0)
-                }
+                val category = classify(child) ?: continue
+                val key = child.name.lowercase(Locale.getDefault()) + "|" + child.length()
+                val count = seen.getOrDefault(key, 0)
+                seen[key] = count + 1
+                found += FileItem(child, category, count > 0)
             }
         }
     }
 
-    selectedFolders.forEach { name -> walk(File(root, name)) }
+    selectedFolders.forEach { walk(File(root, it)) }
     return found.sortedWith(compareBy<FileItem> { !it.duplicate }.thenBy { it.category }.thenBy { it.file.name.lowercase() })
 }
 
@@ -217,17 +210,13 @@ private fun classify(file: File): String? {
     val lower = name.lowercase(Locale.getDefault())
     val ext = lower.substringAfterLast('.', "")
     val base = lower.substringBeforeLast('.', lower)
-
-    if (ext == "mp3") return if (name.contains("MR", ignoreCase = true)) "MR" else "MP3"
-    if (ext in setOf("jpg", "jpeg", "gif", "png", "tif", "tiff", "bmp", "webp", "heic", "heif")) return "IMAGE"
-    if (ext == "pdf") {
-        val score = Regex("(b[1-6]|[1-6]b|#[1-6]|[1-6]#|_c)$", RegexOption.IGNORE_CASE)
-        return if (score.containsMatchIn(base)) "악보" else "PDF"
-    }
-    if (ext in setOf("hwp", "hwpx")) return "한글문서"
-    if (ext in setOf("doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv", "txt")) return "MS문서"
-    if (ext in setOf("zip", "7z", "rar", "tar", "gz", "bz2", "xz")) return "압축파일"
-    if (ext in setOf("dwg", "dwf", "dxf", "stp", "step", "igs", "iges", "ipt", "iam", "stl", "obj", "3ds", "3mf", "fbx")) return "캐드파일"
-    if (ext in setOf("avi", "mp4", "mkv", "mov", "wmv", "flv", "webm", "m4v", "3gp", "mpeg", "mpg")) return "영상파일"
+    if (ext == "mp3") return if (name.contains("MR", true)) "MR" else "MP3"
+    if (ext in setOf("jpg","jpeg","gif","png","tif","tiff","bmp","webp","heic","heif")) return "IMAGE"
+    if (ext == "pdf") return if (Regex("(b[1-6]|[1-6]b|#[1-6]|[1-6]#|_c)$", RegexOption.IGNORE_CASE).containsMatchIn(base)) "악보" else "PDF"
+    if (ext in setOf("hwp","hwpx")) return "한글문서"
+    if (ext in setOf("doc","docx","xls","xlsx","ppt","pptx","csv","txt")) return "MS문서"
+    if (ext in setOf("zip","7z","rar","tar","gz","bz2","xz")) return "압축파일"
+    if (ext in setOf("dwg","dwf","dxf","stp","step","igs","iges","ipt","iam","stl","obj","3ds","3mf","fbx")) return "캐드파일"
+    if (ext in setOf("avi","mp4","mkv","mov","wmv","flv","webm","m4v","3gp","mpeg","mpg")) return "영상파일"
     return null
 }
