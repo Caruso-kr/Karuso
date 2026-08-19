@@ -50,6 +50,12 @@ fun AreaSelection() {
     val names = listOf("DCIM", "Download", "Pictures", "Movies", "Music", "Documents")
     val checked = remember { mutableStateMapOf<String, Boolean>().apply { names.forEach { put(it, it in listOf("DCIM", "Download", "Pictures")) } } }
     var showNext by remember { mutableStateOf(false) }
+    var scanReady by remember { mutableStateOf(false) }
+
+    if (scanReady) {
+        ScanScreen()
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -84,10 +90,37 @@ fun AreaSelection() {
         AlertDialog(
             onDismissRequest = { showNext = false },
             title = { Text("파일 검사 준비") },
-            text = { Text("선택한 영역의 파일을 검사합니다. 다음 단계에서 실제 파일 검사 기능을 연결합니다.") },
+            text = { Text("선택한 영역의 파일을 검사합니다. 다음 단계로 이동합니다.") },
             confirmButton = {
-                TextButton(onClick = { showNext = false }) { Text("확인") }
+                TextButton(onClick = {
+                    showNext = false
+                    scanReady = true
+                }) { Text("확인") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNext = false }) { Text("취소") }
             }
         )
+    }
+}
+
+@Composable
+fun ScanScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .systemBarsPadding()
+            .navigationBarsPadding()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("파일 검사", fontSize = 28.sp)
+        Spacer(Modifier.height(16.dp))
+        Text("선택한 영역의 파일 검사를 준비했습니다.", fontSize = 17.sp)
+        Spacer(Modifier.height(32.dp))
+        Button(onClick = {}, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+            Text("파일 검사 시작", fontSize = 18.sp)
+        }
     }
 }
