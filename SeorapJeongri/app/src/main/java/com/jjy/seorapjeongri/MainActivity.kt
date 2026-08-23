@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
 @Composable private fun Scan(selected:Set<String>,all:Boolean,done:(List<Item>)->Unit){
     var count by remember{mutableIntStateOf(0)}; var status by remember{mutableStateOf("파일을 검사하고 있습니다…")}
     LaunchedEffect(Unit){ val r=withContext(Dispatchers.IO){scan(selected,all){n,s->count=n;status=s}}; done(r) }
-    Column(Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){ CircularProgressIndicator(); Spacer(Modifier.height(20.dp)); Text("파일 검사 중",fontSize=28.sp); Spacer(Modifier.height(10.dp)); Text(status); Spacer(Modifier.height(8.dp)); Text("검사한 파일: $count개") }
+    Column(Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){ CircularProgressIndicator(); Spacer(Modifier.height(20.dp)); Text("파일 검사 중",fontSize=28.sp); Spacer(Modifier.height(10.dp)); Text(status); Spacer(Modifier.height(8.dp)); Text("검사한 파일: ${count}개") }
 }
 
 @Composable private fun Preview(items:List<Item>,back:()->Unit,execute:(List<Item>)->Unit){
@@ -93,4 +93,4 @@ private fun scan(selected:Set<String>,all:Boolean,progress:(Int,String)->Unit):L
 
 private fun classify(f:File):String?{val n=f.name;val l=n.lowercase(Locale.getDefault());val e=l.substringAfterLast('.','');val b=l.substringBeforeLast('.',l);if(e=="mp3")return if(n.contains("MR",true))"MR"else"MP3";if(e in setOf("jpg","jpeg","gif","png","tif","tiff","bmp","webp","heic","heif","avif"))return"IMAGE";if(e=="pdf")return if(Regex("(b[1-6]|[1-6]b|#[1-6]|[1-6]#|_c)$",RegexOption.IGNORE_CASE).containsMatchIn(b))"악보"else"PDF";if(e in setOf("hwp","hwpx"))return"한글문서";if(e in setOf("doc","docx","xls","xlsx","ppt","pptx","csv","rtf","odt","ods","odp"))return"MS문서";if(e in setOf("zip","7z","rar","tar","gz","bz2","xz","tgz"))return"압축파일";if(e in setOf("dwg","dwf","dxf","stp","step","igs","iges","ipt","iam","stl","obj","3ds","3mf","fbx","skp"))return"캐드파일";if(e in setOf("avi","mp4","mkv","mov","wmv","flv","webm","m4v","3gp","mpeg","mpg","mts","m2ts","ts"))return"영상파일";return null}
 private fun dest(x:Item)=File(File(Environment.getExternalStorageDirectory(),"JJY DATA"),if(x.folder.isBlank())"${x.category}/${x.file.name}" else "${x.category}/${x.folder}/${x.file.name}")
-private fun unique(f:File):File{if(!f.exists())return f;val p=f.parentFile?:return f;val n=f.name;val d=n.lastIndexOf('.');val b=if(d>0)n.substring(0,d)else n;val e=if(d>0)n.substring(d)else"";var i=1;var c:File;do{c=File(p,"$b ($i)$e");i++}while(c.exists());return c}
+private fun unique(f:File):File{if(!f.exists())return f;val p=f.parentFile?:return f;val n=f.name;val d=n.lastIndexOf('.');val b=if(d>0)n.substring(0,d)else n.substring(0,d);val e=if(d>0)n.substring(d)else"";var i=1;var c:File;do{c=File(p,"$b ($i)$e");i++}while(c.exists());return c}
