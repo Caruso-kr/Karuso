@@ -32,11 +32,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                DrawerOrganizer(
-                    storageAccess = storageAccess,
-                    scanRequested = scanRequested,
-                    requestStorage = ::requestStorageAccess
-                )
+                DrawerOrganizer(storageAccess, scanRequested, ::requestStorageAccess)
             }
         }
     }
@@ -49,23 +45,15 @@ class MainActivity : ComponentActivity() {
     private fun requestStorageAccess() {
         scanRequested = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
-            startActivity(Intent(
-                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                Uri.parse("package:$packageName")
-            ))
+            startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
         }
     }
 
-    private fun hasStorageAccess(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
+    private fun hasStorageAccess(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
 }
 
 @Composable
-private fun DrawerOrganizer(
-    storageAccess: Boolean,
-    scanRequested: Boolean,
-    requestStorage: () -> Unit
-) {
+private fun DrawerOrganizer(storageAccess: Boolean, scanRequested: Boolean, requestStorage: () -> Unit) {
     var page by remember { mutableStateOf(0) }
     var selected by remember { mutableStateOf(setOf("DCIM", "Download", "Pictures")) }
 
@@ -80,34 +68,26 @@ private fun DrawerOrganizer(
             onToggle = { name -> selected = if (name in selected) selected - name else selected + name },
             onNext = { if (storageAccess) page = 2 else requestStorage() }
         )
-        else -> ScanScreen(selectedFolders = selected, onNext = { page = 3 })
+        2 -> ScanScreen(selectedFolders = selected, onNext = { page = 3 })
+        else -> PreviewScreen()
     }
 }
 
 @Composable
 private fun HomeScreen(onStart: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    Column(Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text("서랍정리", fontSize = 32.sp)
         Spacer(Modifier.height(24.dp))
         Text("파일을 종류별로 정리해 드립니다.", fontSize = 18.sp)
         Spacer(Modifier.height(48.dp))
-        Button(onClick = onStart, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-            Text("파일 정리 시작", fontSize = 18.sp)
-        }
+        Button(onClick = onStart, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text("파일 정리 시작", fontSize = 18.sp) }
     }
 }
 
 @Composable
 private fun AreaSelection(selected: Set<String>, onToggle: (String) -> Unit, onNext: () -> Unit) {
     val names = listOf("DCIM", "Download", "Pictures", "Movies", "Music", "Documents")
-    Column(
-        Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 16.dp)
-    ) {
+    Column(Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 16.dp)) {
         Text("정리할 영역을 선택하세요", fontSize = 24.sp)
         Spacer(Modifier.height(8.dp))
         Text("선택한 폴더와 하위 폴더를 검사합니다.")
@@ -120,11 +100,9 @@ private fun AreaSelection(selected: Set<String>, onToggle: (String) -> Unit, onN
             }
         }
         Spacer(Modifier.weight(1f))
-        Button(
-            onClick = onNext,
-            enabled = selected.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth().height(56.dp)
-        ) { Text("파일 검사 시작", fontSize = 18.sp) }
+        Button(onClick = onNext, enabled = selected.isNotEmpty(), modifier = Modifier.fillMaxWidth().height(56.dp)) {
+            Text("파일 검사 시작", fontSize = 18.sp)
+        }
     }
 }
 
@@ -145,9 +123,7 @@ private fun ScanScreen(selectedFolders: Set<String>, onNext: () -> Unit) {
 
     val duplicateCount = result.count { it.duplicate }
 
-    Column(
-        Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(20.dp)
-    ) {
+    Column(Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(20.dp)) {
         Text("파일 검사", fontSize = 28.sp)
         Spacer(Modifier.height(16.dp))
         when {
@@ -173,17 +149,11 @@ private fun ScanScreen(selectedFolders: Set<String>, onNext: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(16.dp))
-                OutlinedButton(
-                    onClick = { showResults = true },
-                    modifier = Modifier.fillMaxWidth().height(54.dp)
-                ) {
+                OutlinedButton(onClick = { showResults = true }, modifier = Modifier.fillMaxWidth().height(54.dp)) {
                     Text("대상 파일 목록 및 검사 결과 보기", fontSize = 16.sp)
                 }
                 Spacer(Modifier.weight(1f))
-                Button(
-                    onClick = onNext,
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
-                ) {
+                Button(onClick = onNext, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                     Text("다음", fontSize = 18.sp)
                 }
             }
@@ -198,43 +168,32 @@ private fun ScanScreen(selectedFolders: Set<String>, onNext: () -> Unit) {
                 Column(Modifier.fillMaxWidth()) {
                     Text("대상 파일 ${result.size}개 · 중복 의심 ${duplicateCount}개")
                     Spacer(Modifier.height(8.dp))
-                    if (result.isEmpty()) {
-                        Text("정리 대상 파일이 없습니다.")
-                    } else {
-                        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 430.dp)) {
-                            items(result.take(500)) { item ->
-                                Column(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
-                                    Text(item.file.name, fontSize = 15.sp)
-                                    Text("${item.category} · ${item.file.parent ?: ""}", fontSize = 11.sp)
-                                    if (item.duplicate) Text("중복 의심", fontSize = 11.sp)
-                                }
-                                HorizontalDivider()
+                    if (result.isEmpty()) Text("정리 대상 파일이 없습니다.")
+                    else LazyColumn(Modifier.fillMaxWidth().heightIn(max = 430.dp)) {
+                        items(result.take(500)) { item ->
+                            Column(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
+                                Text(item.file.name, fontSize = 15.sp)
+                                Text("${item.category} · ${item.file.parent ?: ""}", fontSize = 11.sp)
+                                if (item.duplicate) Text("중복 의심", fontSize = 11.sp)
                             }
+                            HorizontalDivider()
                         }
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showResults = false }) {
-                    Text("닫기", fontSize = 16.sp)
-                }
-            }
+            confirmButton = { TextButton(onClick = { showResults = false }) { Text("닫기", fontSize = 16.sp) } }
         )
     }
 }
 
 @Composable
 private fun PreviewScreen() {
-    Column(
-        Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    Column(Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text("정리 미리보기", fontSize = 28.sp)
         Spacer(Modifier.height(16.dp))
         Text("검사 결과를 바탕으로 정리할 파일을 확인합니다.", fontSize = 17.sp)
         Spacer(Modifier.height(24.dp))
-        Text("다음 단계에서 체크박스로 정리하지 않을 파일을 선택할 수 있습니다.", fontSize = 14.sp)
+        Text("다음 버전에서 파일별 체크박스와 실제 정리 실행을 연결합니다.", fontSize = 14.sp)
     }
 }
 
@@ -242,13 +201,11 @@ private fun scanFolders(selectedFolders: Set<String>): List<FileItem> {
     val root = Environment.getExternalStorageDirectory()
     val found = mutableListOf<FileItem>()
     val seen = mutableMapOf<String, Int>()
-
     fun walk(dir: File) {
-        if (!dir.exists() || !dir.isDirectory) return
-        if (dir.name.equals("JJY DATA", ignoreCase = true)) return
+        if (!dir.exists() || !dir.isDirectory || dir.name.equals("JJY DATA", true)) return
         val children = dir.listFiles() ?: return
         for (child in children) {
-            if (child.name.equals("JJY DATA", ignoreCase = true)) continue
+            if (child.name.equals("JJY DATA", true)) continue
             if (child.isDirectory) walk(child)
             else if (child.isFile && child.canRead()) {
                 val category = classify(child) ?: continue
@@ -259,7 +216,6 @@ private fun scanFolders(selectedFolders: Set<String>): List<FileItem> {
             }
         }
     }
-
     selectedFolders.forEach { walk(File(root, it)) }
     return found.sortedWith(compareBy<FileItem> { !it.duplicate }.thenBy { it.category }.thenBy { it.file.name.lowercase() })
 }
