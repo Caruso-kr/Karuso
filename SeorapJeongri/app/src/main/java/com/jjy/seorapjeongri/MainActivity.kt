@@ -80,7 +80,7 @@ private fun DrawerOrganizer(
             onToggle = { name -> selected = if (name in selected) selected - name else selected + name },
             onNext = { if (storageAccess) page = 2 else requestStorage() }
         )
-        else -> ScanScreen(selectedFolders = selected)
+        else -> ScanScreen(selectedFolders = selected, onNext = { page = 3 })
     }
 }
 
@@ -129,10 +129,11 @@ private fun AreaSelection(selected: Set<String>, onToggle: (String) -> Unit, onN
 }
 
 @Composable
-private fun ScanScreen(selectedFolders: Set<String>) {
+private fun ScanScreen(selectedFolders: Set<String>, onNext: () -> Unit) {
     var scanning by remember { mutableStateOf(true) }
     var result by remember { mutableStateOf<List<FileItem>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showResults by remember { mutableStateOf(false) }
 
     LaunchedEffect(selectedFolders) {
         scanning = true
@@ -142,9 +143,13 @@ private fun ScanScreen(selectedFolders: Set<String>) {
         finally { scanning = false }
     }
 
-    Column(Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(20.dp)) {
+    val duplicateCount = result.count { it.duplicate }
+
+    Column(
+        Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(20.dp)
+    ) {
         Text("파일 검사", fontSize = 28.sp)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(16.dp))
         when {
             scanning -> {
                 Text("선택한 폴더의 파일을 검사하고 있습니다…")
@@ -159,23 +164,77 @@ private fun ScanScreen(selectedFolders: Set<String>) {
                 Text(error!!)
             }
             else -> {
-                val duplicateCount = result.count { it.duplicate }
-                Text("검사 완료: ${result.size}개 파일")
-                Text("중복 의심: ${duplicateCount}개")
-                Spacer(Modifier.height(12.dp))
-                if (result.isEmpty()) Text("정리 대상 파일이 없습니다.")
-                else LazyColumn(Modifier.weight(1f)) {
-                    items(result.take(500)) { item ->
-                        Column(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
-                            Text(item.file.name, fontSize = 16.sp)
-                            Text("${item.category} · ${item.file.parent ?: ""}", fontSize = 12.sp)
-                            if (item.duplicate) Text("중복 의심", fontSize = 12.sp)
-                        }
-                        HorizontalDivider()
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(20.dp)) {
+                        Text("검사 완료", fontSize = 22.sp)
+                        Spacer(Modifier.height(10.dp))
+                        Text("대상 파일: ${result.size}개", fontSize = 18.sp)
+                        Text("중복 의심: ${duplicateCount}개", fontSize = 18.sp)
                     }
+                }
+                Spacer(Modifier.height(16.dp))
+                OutlinedButton(
+                    onClick = { showResults = true },
+                    modifier = Modifier.fillMaxWidth().height(54.dp)
+                ) {
+                    Text("대상 파일 목록 및 검사 결과 보기", fontSize = 16.sp)
+                }
+                Spacer(Modifier.weight(1f))
+                Button(
+                    onClick = onNext,
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text("다음", fontSize = 18.sp)
                 }
             }
         }
+    }
+
+    if (showResults && !scanning && error == null) {
+        AlertDialog(
+            onDismissRequest = { showResults = false },
+            title = { Text("검사 결과") },
+            text = {
+                Column(Modifier.fillMaxWidth()) {
+                    Text("대상 파일 ${result.size}개 · 중복 의심 ${duplicateCount}개")
+                    Spacer(Modifier.height(8.dp))
+                    if (result.isEmpty()) {
+                        Text("정리 대상 파일이 없습니다.")
+                    } else {
+                        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 430.dp)) {
+                            items(result.take(500)) { item ->
+                                Column(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
+                                    Text(item.file.name, fontSize = 15.sp)
+                                    Text("${item.category} · ${item.file.parent ?: ""}", fontSize = 11.sp)
+                                    if (item.duplicate) Text("중복 의심", fontSize = 11.sp)
+                                }
+                                HorizontalDivider()
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showResults = false }) {
+                    Text("닫기", fontSize = 16.sp)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun PreviewScreen() {
+    Column(
+        Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("정리 미리보기", fontSize = 28.sp)
+        Spacer(Modifier.height(16.dp))
+        Text("검사 결과를 바탕으로 정리할 파일을 확인합니다.", fontSize = 17.sp)
+        Spacer(Modifier.height(24.dp))
+        Text("다음 단계에서 체크박스로 정리하지 않을 파일을 선택할 수 있습니다.", fontSize = 14.sp)
     }
 }
 
